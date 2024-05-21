@@ -49,8 +49,9 @@ check_pkg("units")
 check_pkg("plotly")
 check_pkg("patchwork")
 check_pkg("here")
+check_pkg("SimilarityMeasures")
 
-dataFolder <- here::here("C:/Users/micha/Documents/UZH/24FS/GEO880/week4")   # Data folder
+dataFolder <- here::here()   # Data folder
 ```
 
 # Input & Prep
@@ -63,7 +64,7 @@ library("ggplot2")
 library("lubridate")
 library("SimilarityMeasures")
 
-wildschwein_BE <- read_delim("C:/Users/micha/Documents/UZH/24FS/GEO880/week4/Exercise4/wildschwein_BE_2056.csv", ",")
+wildschwein_BE <- read_delim(file.path(dataFolder, "wildschwein_BE_2056.csv"), ",")
 
 sabi <- wildschwein_BE |>
     st_as_sf(coords = c("E", "N"), crs = 2056, remove = FALSE) |>
@@ -186,5 +187,17 @@ ggplot(gpx_lv95, aes(x = st_coordinates(gpx_lv95)[, 1], y = st_coordinates(gpx_l
   geom_point() +
   geom_path() +
   coord_fixed()
+```
+
+#Task 4
+##segment-based analysis
+```{r task Task 4}
+rle_id <- function(vec) {
+    x <- rle(vec)$lengths
+    as.factor(rep(seq_along(x), times = x))
+}
+
+gpx_lv95 <- gpx_lv95 |>
+    mutate(segment_id = rle_id(static))
 ```
 
