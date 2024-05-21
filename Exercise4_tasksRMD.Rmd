@@ -1,0 +1,98 @@
+---
+title: "GEO880 - Week 4"
+author: "Michael Fehr"
+date: "2024-17-05"
+output:
+  html_document:
+    fig_caption: yes
+    highlight: tango
+    code_folding: show
+    number_sections: no
+    theme: journal
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE)
+
+```
+
+
+```{r package management, echo=FALSE}
+
+check_pkg <- function(x) {
+  #' Checks whether a package is installed and installs or loads the package
+  if (!require(x, character.only = TRUE, quietly = TRUE))
+  {
+    install.packages(x, dep = TRUE)
+    if (!require(x, character.only = TRUE, quietly = TRUE))
+      stop("Package not found")
+  }
+}
+
+check_pkg("pacman")
+check_pkg("dplyr")
+check_pkg("ggplot2")
+check_pkg("readr")
+check_pkg("tidyr")
+check_pkg("sf")
+check_pkg("terra")
+check_pkg("tmap")
+check_pkg("zoo")
+check_pkg("units")
+check_pkg("plotly")
+check_pkg("patchwork")
+check_pkg("here")
+
+dataFolder <- here::here("C:/Users/micha/Documents/UZH/24FS/GEO880/week4")   # Data folder
+```
+
+# Input & Prep
+```{r task Input}
+
+library("readr")
+library("dplyr")
+library("sf")
+
+wildschwein_BE <- read_delim("C:/Users/micha/Documents/UZH/24FS/GEO880/week4/Exercise4/wildschwein_BE_2056.csv", ",")
+
+sabi <- wildschwein_BE |>
+    st_as_sf(coords = c("E", "N"), crs = 2056, remove = FALSE) |>
+    filter(TierName == "Sabi", DatetimeUTC >= "2015-07-01", DatetimeUTC < "2015-07-03")
+
+distance_by_element <- function(later, now) {
+  as.numeric(
+    st_distance(later, now, by_element = TRUE)
+  )
+}
+
+#step a & b : measure the distance from every point to every other point
+
+sabi <- sabi |>
+    mutate(
+        nMinus2 = distance_by_element(lag(geometry, 2), geometry),  # distance to pos -30 minutes
+        nMinus1 = distance_by_element(lag(geometry, 1), geometry),  # distance to pos -15 minutes
+        nPlus1  = distance_by_element(geometry, lead(geometry, 1)), # distance to pos +15 mintues
+        nPlus2  = distance_by_element(geometry, lead(geometry, 2))  # distance to pos +30 minutes
+    )
+
+#rowwise & ungroup
+
+sabi <- sabi |>
+    rowwise() |>
+    mutate(
+        stepMean = mean(c(nMinus2, nMinus1, nPlus1, nPlus2))
+    ) |>
+    ungroup()
+
+sabi
+
+#
+```
+
