@@ -1,7 +1,7 @@
 ---
 title: "GEO880 - Week 4"
 author: "Michael Fehr"
-date: "2024-17-05"
+date: "2024-21-05"
 output:
   html_document:
     fig_caption: yes
@@ -59,6 +59,9 @@ dataFolder <- here::here("C:/Users/micha/Documents/UZH/24FS/GEO880/week4")   # D
 library("readr")
 library("dplyr")
 library("sf")
+library("ggplot2")
+library("lubridate")
+library("SimilarityMeasures")
 
 wildschwein_BE <- read_delim("C:/Users/micha/Documents/UZH/24FS/GEO880/week4/Exercise4/wildschwein_BE_2056.csv", ",")
 
@@ -93,6 +96,95 @@ sabi <- sabi |>
 
 sabi
 
-#
+#filter
+
+sabi <- sabi |>
+    mutate(static = stepMean < mean(stepMean, na.rm = TRUE))
+
+sabi_filter <- sabi |>
+    filter(!static)
+
+sabi_filter |>
+    ggplot(aes(E, N)) +
+    geom_path() +
+    geom_point() +
+    coord_fixed() +
+    theme(legend.position = "bottom")
+```
+
+# Task 1
+## Segmentation
+```{r task Task 1.1}
+
+# Import GPX data
+gpx_path <- "C:/Users/micha/Documents/UZH/24FS/GEO880/GEO880-Project/1 Project Files/Data/Wanderung 4.gpx"
+gpx_data <- st_read(gpx_path, layer = "track_points") 
+
+# Convert time to POSIXct format
+gpx_data$time <- ymd_hms(gpx_data$time)
+
+# Transform to LV95 (EPSG:2056)
+gpx_lv95 <- st_transform(gpx_data, crs = 2056)
+```
+
+## GGPlot
+```{r task Task 1.2}
+
+ggplot(gpx_lv95, aes(x = st_coordinates(gpx_lv95)[, 1], y = st_coordinates(gpx_lv95)[, 2], color = time)) +
+  geom_point() +
+  geom_path() +
+  coord_fixed() +
+  scale_color_datetime(low="blue", high="red") +
+  guides(color = guide_colorbar(title.position="top", title.hjust=.5, barwidth = unit(20, "lines"), barheight = unit(.5, "lines"))) +
+  theme(legend.position = "bottom")
+```
+
+#Task 2
+##specify and apply threshold d
+```{r task Task 2.1}
+distance_by_element <- function(later, now) {
+  as.numeric(
+    st_distance(later, now, by_element = TRUE)
+  )
+}
+
+gpx_lv95 <- gpx_lv95 |>
+    mutate(
+        nMinus2 = distance_by_element(lag(geometry, 2), geometry),  # distance to pos -30 minutes
+        nMinus1 = distance_by_element(lag(geometry, 1), geometry),  # distance to pos -15 minutes
+        nPlus1  = distance_by_element(geometry, lead(geometry, 1)), # distance to pos +15 mintues
+        nPlus2  = distance_by_element(geometry, lead(geometry, 2))  # distance to pos +30 minutes
+    )
+
+gpx_lv95 <- gpx_lv95 |>
+    rowwise() |>
+    mutate(
+        stepMean = mean(c(nMinus2, nMinus1, nPlus1, nPlus2))
+    ) |>
+    ungroup()
+```
+
+##summary & boxplot
+```{r task Task 2.2}
+summary(gpx_lv95$stepMean)
+boxplot(gpx_lv95$stepMean)
+
+#The threshold of 5.130 is used to differentiate between stops and moves
+threshold = 5.130
+
+gpx_lv95 <- gpx_lv95 %>%
+  mutate(static = ifelse(stepMean < threshold, TRUE, FALSE))
+
+# Replace NA values in the 'static' column with FALSE for the first row
+gpx_lv95$static[is.na(gpx_lv95$static)] <- FALSE
+```
+
+#Task 3
+##Visualize segmented trajectories
+```{r task Task 3}
+ggplot(gpx_lv95, aes(x = st_coordinates(gpx_lv95)[, 1], y = st_coordinates(gpx_lv95)[, 2], color = static)) +
+  geom_point() +
+  geom_path() +
+  coord_fixed()
 ```
 
